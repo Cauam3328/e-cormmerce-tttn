@@ -1,3 +1,4 @@
+const { response } = require('express')
 const Product = require('../models/product')
 const asyncHandler = require('express-async-handler')
 const slugify = require('slugify')
@@ -23,12 +24,44 @@ const createProduct = asyncHandler(async(req,res) => {
 })
 // Filtering, sorting and pagination  
 const getProducts = asyncHandler(async(req,res) => { 
-   const products = await Product.find()
-  return res.status(200).json({
-     success: products ? true : false,
-     productDatas: products ? products: 'Cannot get products'
-  })
-})
+   const queries = { ...req.query }
+   // Tách các trường đặc biệt ra khỏi query 
+   const excludeFields = ['limit', 'sort', 'page', 'fields']
+   excludeFields.forEach(el => delete queries[el])
+
+   // Format lại các operators cho đúng cú pháp của mongoose
+   let queryString = JSON.stringify(queries)
+   queryString = queryString.replace(/\b(gte|gt|lt|lte)\b/g, matchedEl => `$${matchedEl}`)
+   const formatedQueries = JSON.parse(queryString)
+
+   // Filtering
+   if (queries?.title) formatedQueries.title = { $regex: queries.title, $options: 'i'}
+   let queryCommand = Product.find(formatedQueries)
+
+   // Sorting
+   if (req.query.sort) {
+      const sortBy = req.query.sort.split(',').join(' ')
+      queryCommand = queryCommand.sort(sortBy)
+   }
+
+   // Fields limiting
+   // Pagination
+
+   // Execute query
+   // Số lượng sp thỏa mãn điều kiện !== số lượng sp trả về 1 lần gọi API
+   try {
+   const response = await queryCommand;
+   const counts = await Product.countDocuments(formatedQueries);
+   return res.status(200).json({
+      success: response ? true : false,
+      products: response.length ? response : 'Cannot get products',
+      counts
+   });
+} catch (err) {
+   throw new Error(err.message);
+}
+});
+
 
 const updateProduct = asyncHandler(async(req,res) => { 
    const { pid} = req.params
