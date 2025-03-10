@@ -39,5 +39,5 @@ const createCategory = asyncHandler(async(req, res) => {
     createCategory,
     getCategories,
     updateCategories,
-    deleteCategory
+    deleteCategory,
  }
